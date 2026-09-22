@@ -17,7 +17,7 @@ export const NAV = [
 const MORE_GROUP = '/more,/analytics,/improve,/settings';
 
 export function logTrade() {
-  toast('The trade form arrives in the next update.');
+  location.hash = '#/trade/new';
 }
 
 export function renderShell() {
@@ -66,8 +66,9 @@ export function renderShell() {
 
   onRoute(route => {
     $('#page-title').textContent = route.title;
+    const target = route.nav || route.path;
     $$('[data-path]', app).forEach(el => {
-      const here = el.dataset.path === route.path || (el.dataset.group || '').split(',').includes(route.path);
+      const here = el.dataset.path === target || (el.dataset.group || '').split(',').includes(target);
       if (here) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     });
   });

@@ -12,7 +12,11 @@ const PATHS = {
   wallet: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19v3M3 7.5V18a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H5.5A2.5 2.5 0 0 1 3 7.5zM16.5 14.5h.01"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   alert: '<path d="M12 4 3 20h18L12 4zM12 10v4M12 17h.01"/>',
-  chevron: '<path d="m9 6 6 6-6 6"/>'
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+  back: '<path d="m15 6-6 6 6 6"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>'
 };
 
 export function icon(name, size = 22) {

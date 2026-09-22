@@ -5,9 +5,10 @@ import { syncNow, fullRefresh, saveSettings, failedOps, discardOp } from '../syn
 import { clearSession } from '../api.js';
 import { clearEverything } from '../db.js';
 import { applyTheme, currentTheme } from './theme.js';
-import { typeLabel, typeChip } from './components.js';
+import { typeChip } from './components.js';
 import { confirmDialog } from './dialog.js';
-import { openAccountDialog, openInstrumentDialog, ASSET_CLASSES } from './forms.js';
+import { openAccountDialog, openInstrumentDialog, openStrategyDialog } from './forms.js';
+import { ASSET_CLASSES } from '../constants.js';
 
 function accountRow(a) {
   return html`
@@ -36,6 +37,16 @@ function instrumentRow(i) {
     </button>`;
 }
 
+function strategyRow(st) {
+  return html`
+    <button class="row" type="button" data-action="edit-strategy" data-id="${st.id}">
+      <span class="row-main">
+        <span class="row-title">${st.name}</span>
+        <span class="row-sub">${st.description || 'No description'}</span>
+      </span>
+    </button>`;
+}
+
 function timeZoneOptions() {
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
   return ['auto', ...zones];
@@ -56,6 +67,7 @@ function template() {
   const archived = archivedAccounts();
   const tz = state.data.settings.timezone || 'auto';
   const instruments = [...state.data.instruments].sort((a, b) => a.symbol.localeCompare(b.symbol));
+  const strategies = [...state.data.strategies].sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
   return html`
     <div class="settings">
@@ -80,6 +92,12 @@ function template() {
         })}
       </section>
 
+      <section class="section" aria-labelledby="s-strat">
+        <div class="section-head"><h2 id="s-strat">Strategies</h2><button class="btn btn-quiet btn-small" type="button" data-action="add-strategy">Add strategy</button></div>
+        <p class="section-note">Name the setups you trade. Tag each trade with one, and Improve will show which ones actually pay.</p>
+        ${strategies.length ? html`<div class="list">${strategies.map(strategyRow)}</div>` : html`<p class="section-note">No strategies yet.</p>`}
+      </section>
+
       <section class="section" aria-labelledby="s-day">
         <h2 id="s-day" style="margin-bottom:12px">Day and time</h2>
         <div class="card">
@@ -87,7 +105,7 @@ function template() {
             <label for="tz">Timezone for your trading day</label>
             <input class="input" id="tz" list="tz-list" value="${tz}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="tz-hint">
             <datalist id="tz-list">${timeZoneOptions().map(z => html`<option value="${z}"></option>`)}</datalist>
-            <p class="hint" id="tz-hint">Trades count toward the day they closed, in this timezone. "auto" follows this device (${deviceTimeZone()}). Pick a fixed zone such as Asia/Manila to keep your calendar steady when you travel.</p>
+            <p class="hint" id="tz-hint">Trade times are entered and shown in this timezone, and each trade counts toward the day it closed. "auto" follows this device (${deviceTimeZone()}). Pick a fixed zone such as Asia/Manila to keep your calendar steady when you travel.</p>
           </div>
         </div>
       </section>
@@ -156,6 +174,8 @@ export function settingsView(outlet) {
       draw();
     } else if (action === 'add-account') openAccountDialog();
     else if (action === 'edit-account') openAccountDialog(state.data.accounts.find(a => a.id === id));
+    else if (action === 'add-strategy') openStrategyDialog();
+    else if (action === 'edit-strategy') openStrategyDialog(state.data.strategies.find(x => x.id === id));
     else if (action === 'add-instrument') openInstrumentDialog();
     else if (action === 'edit-instrument') openInstrumentDialog(state.data.instruments.find(i => i.symbol === id));
     else if (action === 'sync-now') { await syncNow(); if (state.sync.status === 'idle') toast('Up to date'); }

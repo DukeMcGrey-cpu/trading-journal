@@ -1,15 +1,9 @@
-// Add and edit dialogs for accounts and instruments.
+// Add and edit dialogs for accounts, instruments and strategies.
 import { openForm, confirmDialog } from './dialog.js';
 import { saveRecord } from '../sync.js';
 import { state } from '../store.js';
 import { uuid, toast } from '../util.js';
-
-export const ASSET_CLASSES = [
-  { value: 'FOREX', label: 'Forex' },
-  { value: 'COMMODITIES', label: 'Commodities' },
-  { value: 'INDICES', label: 'Indices' },
-  { value: 'CRYPTO', label: 'Crypto' }
-];
+import { ASSET_CLASSES } from '../constants.js';
 
 export async function openAccountDialog(existing = null) {
   const editing = !!existing;
@@ -34,12 +28,12 @@ export async function openAccountDialog(existing = null) {
 
   const now = new Date().toISOString();
   if (result.action === 'secondary') {
-    await saveRecord('accounts', { ...existing, active: archived });
+    const rec = await saveRecord('accounts', { ...existing, active: archived });
     toast(archived ? 'Account restored' : 'Account archived. Its trades are kept.');
-    return true;
+    return rec;
   }
   const v = result.values;
-  await saveRecord('accounts', {
+  const rec = await saveRecord('accounts', {
     ...(existing || {}),
     id: existing ? existing.id : uuid(),
     name: v.name, broker: v.broker, type: v.type, currency: 'USD',
@@ -49,10 +43,11 @@ export async function openAccountDialog(existing = null) {
     deleted: false
   });
   toast(editing ? 'Account saved' : 'Account added');
-  return true;
+  return rec;
 }
 
-export async function openInstrumentDialog(existing = null) {
+/** existing: an instrument to edit. prefill: starting values for a new one (for example { symbol: 'US30' }). */
+export async function openInstrumentDialog(existing = null, prefill = {}) {
   const editing = !!existing;
   const result = await openForm({
     title: editing ? `Edit ${existing.symbol}` : 'Add instrument',
@@ -70,7 +65,7 @@ export async function openInstrumentDialog(existing = null) {
       { name: 'verified', label: 'I checked these values with my broker', type: 'checkbox' },
       { name: 'notes', label: 'Notes', type: 'textarea', rows: 2 }
     ],
-    values: existing || { assetClass: 'FOREX', quoteCcy: 'USD' },
+    values: existing || { assetClass: 'FOREX', quoteCcy: 'USD', ...prefill },
     submitLabel: editing ? 'Save changes' : 'Add instrument',
     secondary: editing ? { label: 'Remove', danger: true } : null,
     validate: v => {
@@ -89,17 +84,53 @@ export async function openInstrumentDialog(existing = null) {
       confirmLabel: 'Remove instrument'
     });
     if (!ok) return null;
-    await saveRecord('instruments', { ...existing, deleted: true });
+    const rec = await saveRecord('instruments', { ...existing, deleted: true });
     toast('Instrument removed');
-    return true;
+    return rec;
   }
   const v = result.values;
-  await saveRecord('instruments', {
+  const rec = await saveRecord('instruments', {
     ...(existing || {}),
     symbol: v.symbol.toUpperCase(), assetClass: v.assetClass, baseCcy: v.baseCcy, quoteCcy: v.quoteCcy,
     contractSize: v.contractSize, tickSize: v.tickSize, defaultLeverage: v.defaultLeverage,
     verified: v.verified, notes: v.notes, deleted: false
   });
   toast(editing ? 'Instrument saved' : 'Instrument added');
-  return true;
+  return rec;
+}
+
+export async function openStrategyDialog(existing = null) {
+  const editing = !!existing;
+  const result = await openForm({
+    title: editing ? 'Edit strategy' : 'Add strategy',
+    fields: [
+      { name: 'name', label: 'Strategy name', required: true, placeholder: 'Breakout retest' },
+      { name: 'description', label: 'What it is', type: 'textarea', rows: 3,
+        hint: 'A few words on the setup and when you take it. This helps you judge later whether you followed it.' }
+    ],
+    values: existing || {},
+    submitLabel: editing ? 'Save changes' : 'Add strategy',
+    secondary: editing ? { label: 'Remove', danger: true } : null,
+    validate: v => (v.name ? '' : 'Give the strategy a name.')
+  });
+  if (!result) return null;
+
+  if (result.action === 'secondary') {
+    const ok = await confirmDialog({
+      title: `Remove ${existing.name}?`,
+      text: 'Trades that used it keep their notes, but the strategy name will no longer show on them.',
+      confirmLabel: 'Remove strategy'
+    });
+    if (!ok) return null;
+    const rec = await saveRecord('strategies', { ...existing, deleted: true });
+    toast('Strategy removed');
+    return rec;
+  }
+  const rec = await saveRecord('strategies', {
+    ...(existing || {}),
+    id: existing ? existing.id : uuid(),
+    name: result.values.name, description: result.values.description, deleted: false
+  });
+  toast(editing ? 'Strategy saved' : 'Strategy added');
+  return rec;
 }

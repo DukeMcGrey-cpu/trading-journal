@@ -12,12 +12,6 @@ export const calendarView = simple({
   text: 'Each day shows its net result and number of trades, with a total for every week and month.'
 });
 
-export const tradesView = simple({
-  icon: 'list',
-  title: 'No trades yet',
-  text: 'The trade form arrives in the next update. Your accounts and instruments are already set up and waiting.'
-});
-
 export const analyticsView = simple({
   icon: 'chart',
   title: 'Charts appear once you have closed trades',

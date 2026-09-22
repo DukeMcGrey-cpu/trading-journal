@@ -3,7 +3,7 @@ import { esc } from '../util.js';
 
 const CLOSE_ICON = '<svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
-function renderField(f, value) {
+export function renderField(f, value) {
   const id = `f-${f.name}`;
   const v = value ?? '';
   const hint = f.hint ? `<p class="hint" id="${id}-hint">${esc(f.hint)}</p>` : '';
@@ -20,6 +20,8 @@ function renderField(f, value) {
   if (f.type === 'select') {
     const opts = f.options.map(o => `<option value="${esc(o.value)}"${String(o.value) === String(v) ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
     control = `<select class="input" id="${id}" name="${f.name}"${req}${described}>${opts}</select>`;
+  } else if (f.type === 'datetime') {
+    control = `<input class="input" id="${id}" name="${f.name}" type="datetime-local" step="60" value="${esc(v)}"${req}${described}>`;
   } else if (f.type === 'textarea') {
     control = `<textarea class="input" id="${id}" name="${f.name}" rows="${f.rows || 3}"${req}${described}>${esc(v)}</textarea>`;
   } else if (f.type === 'number') {

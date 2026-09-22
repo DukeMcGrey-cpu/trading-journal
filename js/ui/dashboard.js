@@ -4,6 +4,7 @@ import { accountBalance, summarize } from '../calc.js';
 import { emptyState, typeChip } from './components.js';
 import { openAccountDialog } from './forms.js';
 import { icon } from './icons.js';
+import { tradeRow } from './trades.js';
 
 function accountCard(a) {
   return html`
@@ -37,6 +38,9 @@ function template() {
   const stats = summarize(state.data, shown);
   const needSize = state.data.instruments.filter(i => i.contractSize === null || i.contractSize === undefined);
   const single = state.activeAccountId !== 'all' && shown.length === 1;
+  const ids = new Set(shown.map(a => a.id));
+  const when = t => Date.parse(t.status === 'CLOSED' ? t.closeTime : t.openTime) || 0;
+  const recent = state.data.trades.filter(t => ids.has(t.accountId)).sort((a, b) => when(b) - when(a)).slice(0, 5);
 
   return html`
     <section class="balance" aria-label="Balance">
@@ -61,6 +65,16 @@ function template() {
         <button class="btn btn-quiet btn-small" type="button" data-action="add-account">Add account</button>
       </div>
       <ul class="cards">${shown.map(accountCard)}</ul>
+    </section>
+
+    <section class="section" aria-labelledby="recent-h">
+      <div class="section-head">
+        <h2 id="recent-h">Recent trades</h2>
+        ${recent.length ? html`<a class="btn btn-quiet btn-small" href="#/trades">See all</a>` : ''}
+      </div>
+      ${recent.length
+        ? html`<div class="list">${recent.map(t => tradeRow(t, { showAccount: shown.length > 1 }))}</div>`
+        : html`<div class="card empty-inline"><p>Nothing logged yet. Your first trade shows up here with its margin, risk and result.</p><a class="btn btn-primary" href="#/trade/new">Log a trade</a></div>`}
     </section>`;
 }
 

@@ -80,6 +80,8 @@ export async function saveSettings(map) {
   await enqueue({ action: 'settings.save', payload: clean, store: 'settings', key: 'settings' });
 }
 
+
+
 async function enqueue(op) {
   const all = await db.getAll('outbox');
   const same = all.find(o => !o.failed && o.store === op.store && String(o.key) === String(op.key) && o.action === op.action);

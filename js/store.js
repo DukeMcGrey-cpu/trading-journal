@@ -1,5 +1,7 @@
 // In-memory app state plus a tiny publish/subscribe so screens redraw when data or sync status changes.
 
+import { effectiveTz } from './util.js';
+
 const topics = { data: new Set(), sync: new Set(), session: new Set() };
 
 export function on(topic, fn) {
@@ -35,4 +37,9 @@ export function setActiveAccount(id) {
   state.activeAccountId = id;
   localStorage.setItem('tj_account', id);
   emit('data');
+}
+
+/** The timezone used to show times and assign trades to days: the Settings choice, or this device's timezone. */
+export function timeZone() {
+  return effectiveTz(state.data.settings.timezone);
 }

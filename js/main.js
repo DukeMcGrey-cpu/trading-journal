@@ -6,7 +6,9 @@ import { applyTheme } from './ui/theme.js';
 import { showLogin } from './ui/login.js';
 import { renderShell } from './ui/shell.js';
 import { dashboardView } from './ui/dashboard.js';
-import { calendarView, tradesView, analyticsView, improveView, moreView } from './ui/placeholders.js';
+import { calendarView, analyticsView, improveView, moreView } from './ui/placeholders.js';
+import { tradesView, tradeDetailView } from './ui/trades.js';
+import { tradeFormView } from './ui/tradeForm.js';
 import { settingsView } from './ui/settings.js';
 import { toast, $ } from './util.js';
 
@@ -14,6 +16,10 @@ const ROUTES = [
   { path: '/dashboard', title: 'Dashboard', view: dashboardView },
   { path: '/calendar', title: 'Calendar', view: calendarView },
   { path: '/trades', title: 'Trades', view: tradesView },
+  { path: '/trade/new', title: 'Log trade', nav: '/trades', view: (o, p) => tradeFormView(o, p, 'new') },
+  { path: '/trade/:id/edit', title: 'Edit trade', nav: '/trades', view: (o, p) => tradeFormView(o, p, 'edit') },
+  { path: '/trade/:id/close', title: 'Close trade', nav: '/trades', view: (o, p) => tradeFormView(o, p, 'close') },
+  { path: '/trade/:id', title: 'Trade', nav: '/trades', view: tradeDetailView },
   { path: '/analytics', title: 'Analytics', view: analyticsView },
   { path: '/improve', title: 'Improve', view: improveView },
   { path: '/settings', title: 'Settings', view: settingsView },

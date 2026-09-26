@@ -42,6 +42,31 @@ function shotSlot(kind, label, url) {
     </div>`;
 }
 
+// Chrome is inconsistent about reading/setting selectionStart or calling setSelectionRange on a
+// type="number" input (the getter can return null, the setter can silently no-op or throw,
+// depending on version) — temporarily switching to type="text" for the read/write sidesteps all
+// of that without changing the field's value, numeric keyboard, or validation. Exported so the
+// workaround itself can be exercised directly in tests, since jsdom does not reproduce the
+// restriction that makes it necessary.
+export function readCaret(el) {
+  if (!el || !('selectionStart' in el)) return null;
+  const wasNumber = el.type === 'number';
+  try {
+    if (wasNumber) el.type = 'text';
+    return el.selectionStart;
+  } catch { return null; }
+  finally { if (wasNumber) el.type = 'number'; }
+}
+export function writeCaret(el, pos) {
+  if (!el || pos == null) return;
+  const wasNumber = el.type === 'number';
+  try {
+    if (wasNumber) el.type = 'text';
+    el.setSelectionRange(pos, pos);
+  } catch { /* field doesn't support text selection at all; leave the caret where the browser puts it */ }
+  finally { if (wasNumber) el.type = 'number'; }
+}
+
 /** mode: "new" | "edit" | "close". params.id identifies the trade for edit/close. */
 export function tradeFormView(outlet, params, mode) {
   const accounts = activeAccounts();
@@ -266,12 +291,12 @@ export function tradeFormView(outlet, params, mode) {
     if (stopped) return;
     const active = document.activeElement;
     const activeName = preserveFocus && active && active.dataset ? active.dataset.f : null;
-    const selStart = activeName && 'selectionStart' in active ? active.selectionStart : null;
+    const selStart = activeName ? readCaret(active) : null;
     mount(outlet, template());
     bind();
     if (activeName) {
       const el = outlet.querySelector(`[data-f="${activeName}"]`);
-      if (el) { el.focus(); if (selStart != null && el.setSelectionRange) { try { el.setSelectionRange(selStart, selStart); } catch { /* not a text field */ } } }
+      if (el) { el.focus(); writeCaret(el, selStart); }
     }
   }
 

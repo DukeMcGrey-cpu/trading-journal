@@ -82,6 +82,22 @@ export async function saveSettings(map) {
 
 
 
+/**
+ * Queue a screenshot upload. `field` says which trade column to fill once ImgBB returns a URL
+ * (imgBefore or imgAfter). The trade doesn't need to be saved on the server yet: the image
+ * uploads on its own, and the trade is patched and re-queued once the URL comes back.
+ */
+export async function queueImageUpload(tradeId, field, base64, name) {
+  await db.put('outbox', {
+    action: 'image.upload', store: null, key: null,
+    payload: { base64, name }, tradeId, field,
+    rev: 0, failed: false, createdAt: new Date().toISOString()
+  });
+  await refreshCounts();
+  emit('sync');
+  syncSoon();
+}
+
 async function enqueue(op) {
   const all = await db.getAll('outbox');
   const same = all.find(o => !o.failed && o.store === op.store && String(o.key) === String(op.key) && o.action === op.action);
@@ -169,6 +185,8 @@ async function sendOutbox() {
         if (op.action.endsWith('.upsert') && data && op.store) {
           if (data.deleted === true) await db.del(op.store, op.key);
           else await db.put(op.store, data);            // server-stamped version
+        } else if (op.action === 'image.upload') {
+          await applyUploadedImage(op.tradeId, op.field, data);
         }
       }
       sent++;
@@ -184,11 +202,24 @@ async function sendOutbox() {
   return sent;
 }
 
+async function applyUploadedImage(tradeId, field, imgbb) {
+  const trade = await db.get('trades', tradeId);
+  if (!trade) return; // the trade was deleted before its image finished uploading
+  const deleteUrls = safeParseList(trade.imgDeleteUrls);
+  deleteUrls.push(imgbb.deleteUrl);
+  const patched = { ...trade, [field]: imgbb.url, imgDeleteUrls: JSON.stringify(deleteUrls), updatedAt: new Date().toISOString() };
+  await db.put('trades', patched);
+  upsertLocal('trades', patched);
+  emit('data');
+  await enqueue({ action: 'trade.upsert', payload: patched, store: 'trades', key: patched.id });
+}
+function safeParseList(v) { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } }
+
 async function pendingKeys() {
   const out = {};
   const add = (store, key) => { (out[store] ||= new Set()).add(String(key)); };
   for (const op of await db.getAll('outbox')) {
-    if (op.failed) continue;
+    if (op.failed || op.action === 'image.upload') continue;
     if (op.store === 'settings') Object.keys(op.payload || {}).forEach(k => add('settings', k));
     else add(op.store, op.key);
   }

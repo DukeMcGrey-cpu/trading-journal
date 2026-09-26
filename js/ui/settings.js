@@ -145,7 +145,7 @@ async function drawSync(host) {
       <div class="list">
         ${failed.map(op => html`
           <div class="fail-item static-row">
-            <span class="row-title">${op.action.replace('.upsert', '')} ${String(op.key)}</span>
+            <span class="row-title">${op.action === 'image.upload' ? 'Screenshot upload' : op.action.replace('.upsert', '') + ' ' + String(op.key)}</span>
             <p>${op.error || 'Rejected'}</p>
             <div><button class="btn btn-quiet btn-small" type="button" data-action="discard-op" data-id="${op.opId}">Discard</button></div>
           </div>`)}

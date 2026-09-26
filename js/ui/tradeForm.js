@@ -1,9 +1,10 @@
 // Log / edit / close trade — a full page (not a dialog) so it works well as a routed, back-button-able screen.
-import { html, mount, $, $$, money, plain, uuid, toast, isoToLocalInput, localInputToIso } from '../util.js';
+import { html, mount, raw, $, $$, money, plain, uuid, toast, isoToLocalInput, localInputToIso } from '../util.js';
 import { state, activeAccounts, timeZone, on } from '../store.js';
 import { calcTrade, accountBalance, suggestLots, hasContractSize } from '../calc.js';
 import { ASSET_CLASSES, SESSIONS, EMOTIONS, TIMEFRAMES, LOT_STEP, sessionOf } from '../constants.js';
-import { saveRecord } from '../sync.js';
+import { saveRecord, queueImageUpload } from '../sync.js';
+import { prepareImage, ImageTooLargeError } from '../images.js';
 import { confirmDialog } from './dialog.js';
 import { openInstrumentDialog, openStrategyDialog } from './forms.js';
 import { icon } from './icons.js';
@@ -27,7 +28,18 @@ function accountOptionsHtml(selected) {
   return activeAccounts().map(a => html`<option value="${a.id}" ${a.id === selected ? 'selected' : ''}>${a.name}</option>`);
 }
 function selectOptions(list, selected, allowEmpty = true) {
-  return (allowEmpty ? `<option value=""></option>` : '') + list.map(v => `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`).join('');
+  const opts = (allowEmpty ? `<option value=""></option>` : '') + list.map(v => `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`).join('');
+  return raw(opts);
+}
+function shotSlot(kind, label, url) {
+  const pending = url && url.startsWith('data:');   // a local preview whose real ImgBB URL hasn't come back yet
+  return html`
+    <div class="shot-slot" data-shot="${kind}"${url ? '' : ' style="border-style:dashed"'}>
+      ${url ? html`<img src="${url}" alt="${label} screenshot">` : html`<span class="shot-label">${label}</span>`}
+      ${pending ? html`<span class="shot-status">Uploading</span>` : ''}
+      ${!url ? html`<input type="file" accept="image/*" data-pick="${kind}" aria-label="Add ${label} screenshot">` : ''}
+      ${url ? html`<button type="button" class="shot-remove" data-remove="${kind}" aria-label="Remove ${label} screenshot">${icon('trash', 14)}</button>` : ''}
+    </div>`;
 }
 
 /** mode: "new" | "edit" | "close". params.id identifies the trade for edit/close. */
@@ -39,7 +51,7 @@ export function tradeFormView(outlet, params, mode) {
   }
 
   const tz = timeZone();
-  const editing = mode !== 'new';
+  let editing = mode !== 'new';
   const source = editing ? state.data.trades.find(x => x.id === params.id && x.deleted !== true) : null;
   if (editing && !source) {
     mount(outlet, html`<p class="section-note">That trade could not be found. It may have been deleted.</p><a class="btn btn-quiet" href="#/trades">Back to trades</a>`);
@@ -56,6 +68,7 @@ export function tradeFormView(outlet, params, mode) {
     fxRateToAcct: null, fees: 0, swap: 0, pnlMode: 'AUTO', pnl: null,
     openTime: now, closeTime: now, strategyId: '', timeframe: '', session: sessionOf(now), emotionBefore: '', emotionAfter: '',
     followedPlan: true, rating: null, tags: '', notes: '', lesson: '',
+    imgBefore: '', imgAfter: '', imgDeleteUrls: '[]',
     createdAt: now, deleted: false
   };
   if (mode === 'close' && t.status !== 'CLOSED') { t.status = 'CLOSED'; t.exit = t.exit ?? t.entry; t.closeTime = now; }
@@ -194,6 +207,14 @@ export function tradeFormView(outlet, params, mode) {
             </div>` : ''}
         </div>
 
+        <div class="card" style="display:grid;gap:12px;margin-top:16px">
+          <p class="group-title" style="margin:0">Screenshots</p>
+          <div class="shot-grid">
+            ${shotSlot('before', 'Before', t.imgBefore)}
+            ${shotSlot('after', 'After', t.imgAfter)}
+          </div>
+        </div>
+
         <div class="card" style="display:grid;gap:16px;margin-top:16px">
           <p class="group-title" style="margin:0">Plan and notes</p>
           <div class="field">
@@ -263,6 +284,22 @@ export function tradeFormView(outlet, params, mode) {
     else t[name] = el.value;
   }
 
+  async function handleFile(kind, file) {
+    if (!file) return;
+    const ok = await ensureSaved();
+    if (!ok) return;
+    const field = kind === 'before' ? 'imgBefore' : 'imgAfter';
+    try {
+      const { base64, previewUrl, name } = await prepareImage(file);
+      t[field] = previewUrl;           // instant local preview; shows "Uploading" until the real URL arrives
+      redraw(false);
+      await queueImageUpload(t.id, field, base64, name);
+    } catch (err) {
+      toast(err instanceof ImageTooLargeError ? err.message : 'Could not read that image.', 'error');
+      redraw(false);
+    }
+  }
+
   function bind() {
     $$('[data-f]', outlet).forEach(el => {
       const evt = el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input';
@@ -285,6 +322,12 @@ export function tradeFormView(outlet, params, mode) {
     }));
     const setSizeBtn = outlet.querySelector('[data-action="set-size"]');
     if (setSizeBtn) setSizeBtn.addEventListener('click', async () => { await openInstrumentDialog(instrumentOf(t.symbol)); redraw(false); });
+    $$('[data-pick]', outlet).forEach(input => input.addEventListener('change', () => handleFile(input.dataset.pick, input.files[0])));
+    $$('[data-remove]', outlet).forEach(btn => btn.addEventListener('click', () => {
+      const field = btn.dataset.remove === 'before' ? 'imgBefore' : 'imgAfter';
+      t[field] = '';
+      redraw(false);
+    }));
     const suggestBtn = outlet.querySelector('[data-action="suggest-lots"]');
     if (suggestBtn) suggestBtn.addEventListener('click', () => {
       const acct = accountOf(t.accountId);
@@ -321,18 +364,35 @@ export function tradeFormView(outlet, params, mode) {
     return '';
   }
 
-  async function onSave() {
-    const problem = validate();
-    if (problem) { showError(problem); return; }
-    showError('');
+  function buildRecord() {
     const inst = instrumentOf(t.symbol);
     const acct = accountOf(t.accountId);
     const calc = calcTrade(t, inst, acct, state.data);
     const record = { ...t, ...calc };
     delete record.rateNeeded; delete record.rateUsed;
+    return record;
+  }
+
+  async function onSave() {
+    const problem = validate();
+    if (problem) { showError(problem); return; }
+    showError('');
+    const record = buildRecord();
     await saveRecord('trades', record);
     toast(mode === 'close' ? 'Trade closed' : editing ? 'Trade saved' : 'Trade logged');
     go(`/trade/${record.id}`);
+  }
+
+  /** Screenshots need the trade to exist locally first, so an uploaded URL always has somewhere to land. */
+  async function ensureSaved() {
+    if (state.data.trades.some(x => x.id === t.id)) return true;
+    const problem = validate();
+    if (problem) { toast('Fill in the required trade details first: ' + problem, 'error'); return false; }
+    const record = buildRecord();
+    await saveRecord('trades', record);
+    Object.assign(t, record);
+    editing = true;
+    return true;
   }
 
   async function onDelete() {
@@ -344,6 +404,19 @@ export function tradeFormView(outlet, params, mode) {
   }
 
   redraw(false);
-  const off = on('data', () => redraw(true));
+  const off = on('data', () => {
+    // An image upload may finish while this form is still open; adopt its real URL so the
+    // "Uploading" placeholder clears, without touching any field the user is mid-editing.
+    const stored = state.data.trades.find(x => x.id === t.id);
+    if (stored) {
+      for (const field of ['imgBefore', 'imgAfter']) {
+        if (typeof t[field] === 'string' && t[field].startsWith('data:') && stored[field] && !stored[field].startsWith('data:')) {
+          t[field] = stored[field];
+          t.imgDeleteUrls = stored.imgDeleteUrls;
+        }
+      }
+    }
+    redraw(true);
+  });
   return () => { stopped = true; off(); };
 }

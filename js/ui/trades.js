@@ -162,6 +162,14 @@ function detailTemplate(t) {
 
       ${t.notes ? html`<div class="section"><p class="hint">Notes</p><p>${esc(t.notes)}</p></div>` : ''}
       ${t.lesson ? html`<div class="section"><p class="hint">Lesson</p><p>${esc(t.lesson)}</p></div>` : ''}
+      ${t.imgBefore || t.imgAfter ? html`
+        <div class="section">
+          <p class="hint" style="margin-bottom:8px">Screenshots</p>
+          <div class="shot-grid" style="grid-template-columns:repeat(${t.imgBefore && t.imgAfter ? 2 : 1}, minmax(0,160px))">
+            ${t.imgBefore ? html`<a class="shot-slot" style="border-style:solid" href="${t.imgBefore}" target="_blank" rel="noopener"><img src="${t.imgBefore}" alt="Before screenshot"></a>` : ''}
+            ${t.imgAfter ? html`<a class="shot-slot" style="border-style:solid" href="${t.imgAfter}" target="_blank" rel="noopener"><img src="${t.imgAfter}" alt="After screenshot"></a>` : ''}
+          </div>
+        </div>` : ''}
 
       <div class="section">
         <button class="btn btn-quiet btn-danger-text" type="button" data-action="delete">${icon('trash', 16)}<span>Delete trade</span></button>

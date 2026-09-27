@@ -31,6 +31,21 @@ function selectOptions(list, selected, allowEmpty = true) {
   const opts = (allowEmpty ? `<option value=""></option>` : '') + list.map(v => `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`).join('');
   return raw(opts);
 }
+function mainCalcBoxContent(calc, overBalance) {
+  return html`
+    <div class="calc-line"><dt>Units</dt><dd>${calc.units != null ? plain(calc.units) : '—'}</dd></div>
+    <div class="calc-line"><dt>Notional</dt><dd>${calc.notional != null ? money(calc.notional) : '—'}</dd></div>
+    <div class="calc-line"><dt>Margin</dt><dd>${calc.margin != null ? money(calc.margin) : '—'}</dd></div>
+    <div class="calc-line"><dt>Risk</dt><dd>${calc.riskAmount != null ? `${money(calc.riskAmount)} (${plain(calc.riskPct, 2)}%)` : '—'}</dd></div>
+    <div class="calc-line"><dt>Planned R:R</dt><dd>${calc.plannedRR != null ? '1 : ' + plain(calc.plannedRR, 2) : '—'}</dd></div>
+    ${overBalance ? html`<p class="calc-warn">Margin is more than the account balance.</p>` : ''}`;
+}
+function pnlCalcBoxContent(calc) {
+  return html`
+    <div class="calc-line"><dt>Net P&amp;L</dt><dd>${calc.pnl != null ? money(calc.pnl) : '—'}</dd></div>
+    <div class="calc-line"><dt>R multiple</dt><dd>${calc.rMultiple != null ? plain(calc.rMultiple, 2) + 'R' : '—'}</dd></div>`;
+}
+
 function shotSlot(kind, label, url) {
   const pending = url && url.startsWith('data:');   // a local preview whose real ImgBB URL hasn't come back yet
   return html`
@@ -159,8 +174,7 @@ export function tradeFormView(outlet, params, mode) {
             <input class="input" id="tf-take" type="number" step="any" data-f="takeProfit" value="${t.takeProfit ?? ''}">
           </div>
 
-          ${sized && t.stopLoss && t.entry && balance ? html`
-            <button type="button" class="btn btn-quiet btn-small" data-action="suggest-lots" style="justify-self:start">Suggest lots for 1% risk</button>` : ''}
+          <button type="button" id="suggest-lots-btn" class="btn btn-quiet btn-small" data-action="suggest-lots" style="justify-self:start" ${sized && t.stopLoss && t.entry && balance ? '' : 'hidden'}>Suggest lots for 1% risk</button>
 
           <div class="field">
             <label for="tf-lev">Leverage</label>
@@ -168,21 +182,13 @@ export function tradeFormView(outlet, params, mode) {
             <p class="hint">Enter 100 for 1:100.</p>
           </div>
 
-          ${calc.rateNeeded ? html`
-            <div class="field">
-              <label for="tf-rate">${inst?.quoteCcy || 'Quote'} to USD rate</label>
-              <input class="input" id="tf-rate" type="number" step="any" data-f="fxRateToAcct" value="${t.fxRateToAcct ?? ''}">
-              <p class="hint">${inst?.symbol || 'This pair'} doesn't involve USD directly, so margin and P&amp;L need this rate. You can also switch P&amp;L to manual below.</p>
-            </div>` : ''}
-
-          <div class="calc-box" aria-live="polite">
-            <div class="calc-line"><dt>Units</dt><dd>${calc.units != null ? plain(calc.units) : '—'}</dd></div>
-            <div class="calc-line"><dt>Notional</dt><dd>${calc.notional != null ? money(calc.notional) : '—'}</dd></div>
-            <div class="calc-line"><dt>Margin</dt><dd>${calc.margin != null ? money(calc.margin) : '—'}</dd></div>
-            <div class="calc-line"><dt>Risk</dt><dd>${calc.riskAmount != null ? `${money(calc.riskAmount)} (${plain(calc.riskPct, 2)}%)` : '—'}</dd></div>
-            <div class="calc-line"><dt>Planned R:R</dt><dd>${calc.plannedRR != null ? '1 : ' + plain(calc.plannedRR, 2) : '—'}</dd></div>
-            ${overBalance ? html`<p class="calc-warn">Margin is more than the account balance.</p>` : ''}
+          <div class="field" id="rate-field-wrap" ${calc.rateNeeded ? '' : 'hidden'}>
+            <label for="tf-rate">${inst?.quoteCcy || 'Quote'} to USD rate</label>
+            <input class="input" id="tf-rate" type="number" step="any" data-f="fxRateToAcct" value="${t.fxRateToAcct ?? ''}">
+            <p class="hint">${inst?.symbol || 'This pair'} doesn't involve USD directly, so margin and P&amp;L need this rate. You can also switch P&amp;L to manual below.</p>
           </div>
+
+          <div class="calc-box" id="calc-box-main" aria-live="polite">${mainCalcBoxContent(calc, overBalance)}</div>
 
           <div class="field">
             <label for="tf-open">Opened</label>
@@ -218,10 +224,7 @@ export function tradeFormView(outlet, params, mode) {
                 <label for="tf-swap">Swap</label>
                 <input class="input" id="tf-swap" type="number" step="any" data-f="swap" value="${t.swap ?? 0}">
               </div>
-              <div class="calc-box">
-                <div class="calc-line"><dt>Net P&amp;L</dt><dd>${calc.pnl != null ? money(calc.pnl) : '—'}</dd></div>
-                <div class="calc-line"><dt>R multiple</dt><dd>${calc.rMultiple != null ? plain(calc.rMultiple, 2) + 'R' : '—'}</dd></div>
-              </div>`}
+              <div class="calc-box" id="calc-box-pnl">${pnlCalcBoxContent(calc)}</div>`}
             <div class="field">
               <label for="tf-emo-after">How did you feel after? <span class="opt">(optional)</span></label>
               <select class="input" id="tf-emo-after" data-f="emotionAfter">${selectOptions(EMOTIONS, t.emotionAfter)}</select>
@@ -287,6 +290,34 @@ export function tradeFormView(outlet, params, mode) {
 
   let stopped = false;
 
+  /**
+   * Refreshes the live calculation preview without rebuilding the form. Typing in a number field
+   * calls this instead of redraw(): rebuilding the DOM on every keystroke is what caused the
+   * cursor-jumps-to-the-start bug, since a freshly recreated <input type="number"> in Chrome
+   * doesn't reliably keep the caret where JavaScript tries to put it. Updating just the preview
+   * elements in place means the input the user is typing into is never touched at all.
+   */
+  function updatePreview() {
+    const inst = instrumentOf(t.symbol);
+    const acct = accountOf(t.accountId);
+    const sized = hasContractSize(inst);
+    const calc = calcTrade(t, inst, acct, state.data);
+    const balance = acct ? accountBalance(acct, state.data) : 0;
+    const overBalance = calc.margin != null && balance > 0 && calc.margin > balance;
+
+    const mainBox = outlet.querySelector('#calc-box-main');
+    if (mainBox) mount(mainBox, mainCalcBoxContent(calc, overBalance));
+
+    const pnlBox = outlet.querySelector('#calc-box-pnl');
+    if (pnlBox) mount(pnlBox, pnlCalcBoxContent(calc));
+
+    const rateWrap = outlet.querySelector('#rate-field-wrap');
+    if (rateWrap) rateWrap.hidden = !calc.rateNeeded;
+
+    const suggestBtn = outlet.querySelector('#suggest-lots-btn');
+    if (suggestBtn) suggestBtn.hidden = !(sized && t.stopLoss && t.entry && balance);
+  }
+
   function redraw(preserveFocus = true) {
     if (stopped) return;
     const active = document.activeElement;
@@ -336,7 +367,8 @@ export function tradeFormView(outlet, params, mode) {
           return;
         }
         readField(el);
-        redraw(evt === 'input');
+        if (evt === 'input') updatePreview();   // never rebuilds the DOM, so the caret is never disturbed
+        else redraw(false);
       });
     });
     $$('[data-set]', outlet).forEach(btn => btn.addEventListener('click', () => {

@@ -2,7 +2,7 @@
  * Caches the app shell so the journal opens offline.
  * The Apps Script API is never cached: offline writes are handled by the app's outbox.
  * Bump CACHE_VERSION whenever you deploy new files. */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE = 'tj-shell-' + CACHE_VERSION;
 
 const SHELL = [
@@ -34,6 +34,7 @@ const SHELL = [
   'js/ui/dashboard.js',
   'js/ui/trades.js',
   'js/ui/tradeForm.js',
+  'js/ui/calendar.js',
   'js/ui/placeholders.js',
   'js/ui/settings.js'
 ];

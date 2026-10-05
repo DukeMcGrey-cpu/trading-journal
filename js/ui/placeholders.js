@@ -6,12 +6,6 @@ import { icon } from './icons.js';
 
 const simple = (opts) => outlet => { mount(outlet, emptyState(opts)); };
 
-export const calendarView = simple({
-  icon: 'calendar',
-  title: 'Your calendar fills in as you close trades',
-  text: 'Each day shows its net result and number of trades, with a total for every week and month.'
-});
-
 export const analyticsView = simple({
   icon: 'chart',
   title: 'Charts appear once you have closed trades',

@@ -437,7 +437,7 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .cal-cell.loss .d-pnl { color: var(--loss); }
 .cal-cell .d-count { font-size: .6875rem; color: var(--ink-3); }
 @media (max-width: 480px) { .cal-cell .d-count { display: none; } }
-.cal-week-total { text-align: right; font-size: .75rem; color: var(--ink-3); padding: 2px 4px 10px; }
+.cal-week-total { grid-column: 1 / -1; text-align: right; font-size: .75rem; color: var(--ink-3); padding: 2px 4px 10px; }
 
 /* ---------- Trades: list, detail, form ---------- */
 

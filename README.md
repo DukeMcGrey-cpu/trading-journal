@@ -7,7 +7,7 @@ A personal trading journal that runs as a website and installs like an app on ph
 - Database: Google Sheets
 - Screenshots: ImgBB
 
-This is version 0.3.0.
+This is version 0.4.0.
 
 - Sign in, several USD accounts, light and dark themes, offline-first sync, installable app
 - Instruments with contract sizes you enter yourself, and strategies
@@ -15,8 +15,9 @@ This is version 0.3.0.
 - **Size from risk:** enter a risk percentage and get the lot size
 - **Before/after screenshots** on any trade: pick a photo, it's compressed on your device, shows instantly, and uploads to ImgBB in the background — even if you're offline when you attach it
 - Trades list with search and filters, trade detail page, recent trades on the dashboard
+- **Calendar:** a month grid of daily results, a running total for each week, tap any day to see its trades, and a "Today" shortcut once you've navigated away — all based on the timezone you set in Settings
 
-The calendar, analytics and recommendations arrive in the next builds.
+Analytics and recommendations arrive in the next builds.
 
 ## Publish it on GitHub Pages
 

@@ -4,14 +4,6 @@ import { state, on } from '../store.js';
 import { emptyState } from './components.js';
 import { icon } from './icons.js';
 
-const simple = (opts) => outlet => { mount(outlet, emptyState(opts)); };
-
-export const analyticsView = simple({
-  icon: 'chart',
-  title: 'Charts appear once you have closed trades',
-  text: 'You will see your equity curve, results by weekday, session, market and strategy, and your drawdown.'
-});
-
 export function improveView(outlet) {
   const draw = () => {
     const min = Number(state.data.settings.minTrades) || 20;
